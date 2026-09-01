@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — WebGIS Surakarta</title>
+  <meta name="description"
+    content="Panel admin untuk mengelola data spasial WebGIS Pemantauan Tutupan Lahan Kota Surakarta." />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/css/style.css" />
+
+  <style>
+    /* Admin-specific overrides */
+    body {
+      overflow: auto;
+    }
+
+    .admin-wrapper {
+      min-height: 100vh;
+      padding-top: var(--navbar-height);
+      padding-bottom: var(--footer-height);
+      background: var(--color-bg-dark);
+    }
+
+    .admin-container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* Login Card */
+    .login-card {
+      max-width: 420px;
+      margin: 80px auto;
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border);
+      border-radius: 16px;
+      padding: 40px 32px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .login-card__title {
+      font-size: 22px;
+      font-weight: 800;
+      text-align: center;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #e2e8f0, var(--color-primary-light));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .login-card__subtitle {
+      text-align: center;
+      font-size: 13px;
+      color: var(--color-text-muted);
+      margin-bottom: 28px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--color-bg-dark);
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      color: var(--color-text);
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--color-primary-light);
+      box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15);
+    }
+
+    .form-input::placeholder {
+      color: #475569;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    /* Dashboard Section Cards */
+    .dash-card {
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+
+    .dash-card__title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Upload form file input */
+    .file-input-wrapper {
+      position: relative;
+      border: 2px dashed var(--color-border);
+      border-radius: 12px;
+      padding: 28px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .file-input-wrapper:hover {
+      border-color: var(--color-primary-light);
+      background: rgba(20, 184, 166, 0.04);
+    }
+
+    .file-input-wrapper input[type="file"] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .file-input-wrapper__icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    .file-input-wrapper__text {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      font-weight: 500;
+    }
+
+    .file-input-wrapper__name {
+      font-size: 13px;
+      color: var(--color-primary-light);
+      font-weight: 600;
+      margin-top: 6px;
+    }
+
+    /* Data table */
+    .data-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 13px;
+    }
+
+    .data-table thead th {
+      background: var(--color-bg-dark);
+      color: var(--color-text-muted);
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .data-table thead th:first-child {
+      border-radius: 10px 0 0 0;
+    }
+
+    .data-table thead th:last-child {
+      border-radius: 0 10px 0 0;
+    }
+
+    .data-table tbody tr {
+      transition: background 0.15s;
+    }
+
+    .data-table tbody tr:hover {
+      background: rgba(20, 184, 166, 0.04);
+    }
+
+    .data-table tbody td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--color-border);
+      color: var(--color-text);
+    }
+
+    .badge {
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      display: inline-block;
+    }
+
+    .badge--geojson {
+      background: rgba(20, 184, 166, 0.15);
+      color: var(--color-primary-light);
+    }
+
+    .badge--shp {
+      background: rgba(59, 130, 246, 0.15);
+      color: #3b82f6;
+    }
+
+    .badge--tif {
+      background: rgba(245, 158, 11, 0.15);
+      color: #f59e0b;
+    }
+
+    /* Error message */
+    .error-msg {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--color-danger);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    /* Success message */
+    .success-msg {
+      background: rgba(34, 197, 94, 0.1);
+      color: var(--color-success);
+      border: 1px solid rgba(34, 197, 94, 0.25);
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ═══════════════════ NAVBAR ═══════════════════ -->
+  <nav class="navbar">
+    <div class="navbar__brand">
+      <div class="navbar__logo">🌍</div>
+      <div>
+        <div class="navbar__title">WebGIS Pemantauan Tutupan Lahan</div>
+        <div class="navbar__subtitle">Kota Surakarta</div>
+      </div>
+    </div>
+    <div class="navbar__actions">
+      <a href="/" class="navbar__link">Peta</a>
+      <a href="/admin.html" class="navbar__link navbar__link--active">Admin</a>
+      <button class="navbar__link" id="btn-logout" onclick="logout()"
+        style="display:none; cursor:pointer; background:none; border:none;">
+        Logout
+      </button>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════ ADMIN WRAPPER ═══════════════════ -->
+  <div class="admin-wrapper">
+
+    <!-- ── LOGIN VIEW ── -->
+    <div id="login-view">
+      <div class="login-card">
+        <div class="login-card__title">Admin Login</div>
+        <div class="login-card__subtitle">Masukkan kredensial untuk mengakses dashboard admin</div>
+
+        <div id="login-error" class="error-msg"></div>
+
+        <form id="login-form" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label class="form-label">Username</label>
+            <input class="form-input" type="text" id="login-username" placeholder="username" required
+              autocomplete="username" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <input class="form-input" type="password" id="login-password" placeholder="password" required
+              autocomplete="current-password" />
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px;">
+            🔐 Login
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── DASHBOARD VIEW ── -->
+    <div id="dashboard-view" style="display:none;">
+      <div class="admin-container">
+
+        <div style="margin-bottom:28px;">
+          <h1
+            style="font-size:24px; font-weight:800; background: linear-gradient(135deg, #e2e8f0, var(--color-primary-light)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
+            Dashboard Admin
+          </h1>
+          <p style="color:var(--color-text-muted); font-size:13px; margin-top:4px;">
+            Kelola data spasial tutupan lahan Kota Surakarta
+          </p>
+        </div>
+
+        <!-- Upload Card -->
+        <div class="dash-card">
+          <div class="dash-card__title">📤 Upload Data Spasial</div>
+
+          <div id="upload-success" class="success-msg"></div>
+          <div id="upload-error" class="error-msg"></div>
+
+          <form id="upload-form" onsubmit="handleUpload(event)">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Tahun Data</label>
+                <input class="form-input" type="number" id="upload-year" min="1900" max="2100" placeholder="2024"
+                  required />
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Tipe File</label>
+                <select class="form-select" id="upload-type">
+                  <option value="geojson">GeoJSON (.geojson)</option>
+                  <option value="shp">Shapefile (.zip)</option>
+                  <option value="tif">Raster TIFF (.tif)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Deskripsi (opsional)</label>
+              <input class="form-input" type="text" id="upload-desc" placeholder="Keterangan singkat tentang data..." />
+            </div>
+
+            <div class="form-group">
+              <div class="file-input-wrapper" id="file-drop-area">
+                <input type="file" id="upload-file" accept=".geojson,.zip,.tif,.tiff" required
+                  onchange="onFileSelected(this)" />
+                <div class="file-input-wrapper__icon">📁</div>
+                <div class="file-input-wrapper__text">Klik atau drag file ke sini</div>
+                <div class="file-input-wrapper__text" style="font-size:11px; opacity:0.6;">
+                  Format: .geojson, .zip (SHP), .tif
+                </div>
+                <div class="file-input-wrapper__name" id="selected-file-name"></div>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="btn-upload" style="width:100%; justify-content:center;">
+              ⬆️ Upload
+            </button>
+          </form>
+        </div>
+
+        <!-- Data Table Card -->
+        <div class="dash-card">
+          <div class="dash-card__title">📋 Data Tersimpan</div>
+
+          <div id="data-table-container">
+            <div class="empty-state">
+              <div class="empty-state__icon">📂</div>
+              <div class="empty-state__text">Memuat data...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════ MANAJEMEN AKUN ═══════════════════ -->
+        <div style="margin-bottom:28px; margin-top:40px;">
+          <h2
+            style="font-size:20px; font-weight:800; background: linear-gradient(135deg, #e2e8f0, #8b5cf6); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color:transparent;">
+            👤 Manajemen Akun
+          </h2>
+          <p style="color:var(--color-text-muted); font-size:13px; margin-top:4px;">
+            Kelola akun admin untuk sistem WebGIS
+          </p>
+        </div>
+
+        <!-- Create New Admin -->
+        <div class="dash-card">
+          <div class="dash-card__title">➕ Tambah Akun Admin Baru</div>
+
+          <div id="create-user-success" class="success-msg"></div>
+          <div id="create-user-error" class="error-msg"></div>
+
+          <form id="create-user-form" onsubmit="handleCreateUser(event)">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Username</label>
+                <input class="form-input" type="text" id="new-username" placeholder="username_baru" required
+                  minlength="3" autocomplete="off" />
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Password</label>
+                <input class="form-input" type="password" id="new-password" placeholder="Min. 6 karakter" required
+                  minlength="6" autocomplete="new-password" />
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" id="btn-create-user" style="justify-content:center;">
+              ➕ Tambah Akun
+            </button>
+          </form>
+        </div>
+
+        <!-- Change Password -->
+        <div class="dash-card">
+          <div class="dash-card__title">🔑 Ganti Password</div>
+
+          <div id="change-pw-success" class="success-msg"></div>
+          <div id="change-pw-error" class="error-msg"></div>
+
+          <form id="change-pw-form" onsubmit="handleChangePassword(event)">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Password Lama</label>
+                <input class="form-input" type="password" id="old-password" placeholder="••••••••" required
+                  autocomplete="current-password" />
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label">Password Baru</label>
+                <input class="form-input" type="password" id="new-pw" placeholder="Min. 6 karakter" required
+                  minlength="6" autocomplete="new-password" />
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" id="btn-change-pw"
+              style="justify-content:center; background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+              🔑 Ubah Password
+            </button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════ FOOTER ═══════════════════ -->
+  <footer class="footer">
+    <span class="footer__text">
+      © 2026 WebGIS Pemantauan Tutupan Lahan Kota Surakarta — Skripsi
+    </span>
+  </footer>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Script -->
+  <script src="/js/admin.js?v=2"></script>
+</body>
+
+</html>

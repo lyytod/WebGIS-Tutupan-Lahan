@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# SQLite Database (Mencegah database lokal ter-upload)
+*.db
+*.sqlite3
+
+# Spatial Data & Uploads (Asumsi jika ada folder upload untuk user)
+uploads/
+/backend/uploads/
+
+# OS / IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

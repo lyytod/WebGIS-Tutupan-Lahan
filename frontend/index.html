@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGIS Pemantauan Tutupan Lahan — Kota Surakarta</title>
+  <meta name="description" content="Sistem WebGIS untuk pemantauan dan analisis perubahan tutupan lahan di Kota Surakarta. Visualisasi interaktif dengan MapLibre GL JS." />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- MapLibre GL JS -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════ NAVBAR ═══════════════════ -->
+  <nav class="navbar">
+    <div class="navbar__brand">
+      <div class="navbar__logo">🌍</div>
+      <div>
+        <div class="navbar__title">WebGIS Pemantauan Tutupan Lahan</div>
+        <div class="navbar__subtitle">Kota Surakarta</div>
+      </div>
+    </div>
+    <div class="navbar__actions">
+      <a href="/" class="navbar__link navbar__link--active">Peta</a>
+      <a href="/admin.html" class="navbar__link">Admin</a>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════ MAIN LAYOUT ═══════════════════ -->
+  <div class="app-layout" style="padding-bottom: var(--footer-height);">
+
+    <!-- ── Sidebar ── -->
+    <aside class="sidebar" id="sidebar">
+
+      <!-- Mode Toggle -->
+      <div class="sidebar__section">
+        <div class="sidebar__title">
+          <span>⚙</span> Mode Analisis
+        </div>
+        <div class="toggle-group">
+          <button class="toggle-group__btn active" id="btn-single" onclick="setMode('single')">
+            Single Year
+          </button>
+          <button class="toggle-group__btn" id="btn-multi" onclick="setMode('multi')">
+            Multi-Year
+          </button>
+        </div>
+      </div>
+
+      <!-- Year Selection -->
+      <div class="sidebar__section">
+        <div class="sidebar__title">
+          <span>📅</span> Pilih Tahun
+        </div>
+
+        <!-- Single Year Selector -->
+        <div id="single-year-controls">
+          <label class="form-label">Tahun</label>
+          <select class="form-select" id="select-year" onchange="loadSingleYear()">
+            <option value="">— Pilih tahun —</option>
+          </select>
+        </div>
+
+        <!-- Multi Year Selectors -->
+        <div id="multi-year-controls" style="display: none;">
+          <div style="margin-bottom: 12px;">
+            <label class="form-label">Tahun A (Awal)</label>
+            <select class="form-select" id="select-year-a">
+              <option value="">— Pilih tahun A —</option>
+            </select>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label class="form-label">Tahun B (Akhir)</label>
+            <select class="form-select" id="select-year-b">
+              <option value="">— Pilih tahun B —</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" style="width: 100%;" onclick="loadMultiYear()">
+            🔍 Bandingkan
+          </button>
+          <button class="btn btn-primary" style="width: 100%; margin-top: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6);" id="btn-matrix" onclick="openTransitionMatrix()" disabled>
+            📋 Lihat Tabel Perubahan Lahan
+          </button>
+        </div>
+      </div>
+
+      <!-- Statistics -->
+      <div class="sidebar__section" style="flex: 1; display: flex; flex-direction: column;">
+        <div class="sidebar__title">
+          <span>📊</span> Statistik (Hektar)
+        </div>
+        <div class="stats-panel" id="stats-container">
+          <div class="empty-state">
+            <div class="empty-state__icon">🗺️</div>
+            <div class="empty-state__text">Belum ada data</div>
+            <div class="empty-state__hint">Pilih tahun untuk menampilkan statistik tutupan lahan</div>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ── Map ── -->
+    <main class="map-container">
+      <div id="map"></div>
+      <div class="loading-overlay" id="loading" style="display: none;">
+        <div class="spinner"></div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Mobile sidebar toggle -->
+  <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+
+  <!-- ═══════════════════ FOOTER ═══════════════════ -->
+  <footer class="footer">
+    <span class="footer__text">
+      © 2026 WebGIS Pemantauan Tutupan Lahan Kota Surakarta — Skripsi
+    </span>
+  </footer>
+
+  <!-- ═══════════════════ TRANSITION MATRIX MODAL ═══════════════════ -->
+  <div id="matrix-modal" class="fixed inset-0 z-[9000] hidden">
+    <!-- Backdrop -->
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeMatrixModal()"></div>
+    <!-- Modal Card -->
+    <div class="absolute inset-4 sm:inset-8 md:inset-12 lg:inset-16 flex items-center justify-center pointer-events-none">
+      <div class="pointer-events-auto w-full max-w-5xl max-h-[85vh] flex flex-col rounded-2xl border border-[#334155] shadow-2xl" style="background: var(--color-bg-card);">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-[#334155]">
+          <div>
+            <h2 class="text-lg font-bold" style="color: var(--color-text);">📋 Tabel Perubahan Lahan (Transition Matrix)</h2>
+            <p class="text-xs mt-1" style="color: var(--color-text-muted);" id="matrix-subtitle">Area dalam Hektar (Ha)</p>
+          </div>
+          <button onclick="closeMatrixModal()" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition" style="color: var(--color-text-muted); font-size:20px;">&times;</button>
+        </div>
+        <!-- Body (scrollable) -->
+        <div class="flex-1 overflow-auto p-6" id="matrix-body">
+          <div class="empty-state">
+            <div class="empty-state__icon">⏳</div>
+            <div class="empty-state__text">Memuat data...</div>
+          </div>
+        </div>
+        <!-- Footer -->
+        <div class="px-6 py-3 border-t border-[#334155] flex justify-end">
+          <button class="btn btn-primary btn-sm" onclick="closeMatrixModal()">Tutup</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Scripts -->
+  <script src="/js/map.js"></script>
+</body>
+</html>

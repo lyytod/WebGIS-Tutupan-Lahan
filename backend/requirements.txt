@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+geopandas
+sqlalchemy
+python-jose[cryptography]
+bcrypt
+python-multipart
+python-dotenv
+shapely
+pyproj
+fiona
