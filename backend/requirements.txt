@@ -9,3 +9,4 @@ python-dotenv
 shapely
 pyproj
 fiona
+a2wsgi
