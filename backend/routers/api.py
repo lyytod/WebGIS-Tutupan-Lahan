@@ -290,6 +290,9 @@ def transition_matrix(year_a: int, year_b: int, db: Session = Depends(get_db)):
             gdf.set_crs(epsg=4326, inplace=True)
         elif not gdf.crs.is_geographic:
             gdf.to_crs(epsg=4326, inplace=True)
+        
+        # Fix topological errors (e.g. self-intersections) before overlay
+        gdf["geometry"] = gdf.geometry.buffer(0)
 
     # Overlay intersection
     gdf_inter = gpd.overlay(gdf_a, gdf_b, how="intersection", keep_geom_type=True)
@@ -340,10 +343,12 @@ def transition_matrix(year_a: int, year_b: int, db: Session = Depends(get_db)):
 def _detect_class_col(gdf) -> str:
     """Detect the land-cover class column in a GeoDataFrame."""
     candidates = [
+        "Cls_Name", "cls_name", "Cls_ID", "cls_id",
         "class", "kelas", "classname", "class_name", "nama_kelas",
         "landcover", "land_cover", "tutupan", "Kelas", "Class",
         "CLASS", "CLASSNAME", "KELAS", "Nama_Kelas", "GRIDCODE",
-        "gridcode", "DN", "dn",
+        "gridcode", "DN", "dn", "REMARK", "remark", "Keterangan", "keterangan",
+        "TUTUPAN", "tutupan_lahan", "Name", "name", "Desc", "desc", "Description"
     ]
     for c in candidates:
         if c in gdf.columns:
@@ -369,25 +374,8 @@ def _compute_stats(geojson_path: str) -> dict:
         if gdf.empty:
             return {}
 
-        # Detect the class name column — look for common names
-        class_col = None
-        candidates = ["class", "kelas", "classname", "class_name", "nama_kelas",
-                       "landcover", "land_cover", "tutupan", "Kelas", "Class",
-                       "CLASS", "CLASSNAME", "KELAS", "Nama_Kelas", "GRIDCODE",
-                       "gridcode", "DN", "dn"]
-        for c in candidates:
-            if c in gdf.columns:
-                class_col = c
-                break
-        if class_col is None:
-            # Fall back to first non-geometry string column
-            for c in gdf.columns:
-                if c != "geometry" and gdf[c].dtype == "object":
-                    class_col = c
-                    break
-        if class_col is None:
-            class_col = "class"
-            gdf[class_col] = "Unknown"
+        # Detect the class name column
+        class_col = _detect_class_col(gdf)
 
         # Reproject to UTM 49S (EPSG:32749) for metric area calculation — Surakarta region
         if gdf.crs and gdf.crs.is_geographic:

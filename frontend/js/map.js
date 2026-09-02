@@ -206,10 +206,12 @@ function detectClassProperty(geojson) {
   if (!geojson.features || geojson.features.length === 0) return null;
   const props = geojson.features[0].properties || {};
   const candidates = [
+    'Cls_Name', 'cls_name', 'Cls_ID', 'cls_id',
     'class', 'kelas', 'classname', 'class_name', 'nama_kelas',
     'landcover', 'land_cover', 'tutupan', 'Kelas', 'Class',
     'CLASS', 'CLASSNAME', 'KELAS', 'Nama_Kelas', 'GRIDCODE',
-    'gridcode', 'DN', 'dn',
+    'gridcode', 'DN', 'dn', 'REMARK', 'remark', 'Keterangan', 'keterangan',
+    'TUTUPAN', 'tutupan_lahan', 'Name', 'name', 'Desc', 'desc', 'Description'
   ];
   for (const c of candidates) {
     if (c in props) return c;
