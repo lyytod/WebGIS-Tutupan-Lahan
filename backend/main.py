@@ -73,10 +73,8 @@ else:
 
 
 # ---------------------------------------------------------------------------
-# Startup
+# Startup (Dijalankan langsung untuk kompatibilitas WSGI/Passenger cPanel)
 # ---------------------------------------------------------------------------
-@app.on_event("startup")
-def on_startup():
-    init_db()
-    seed_admin()
-    print("[APP] WebGIS API is running ✓")
+init_db()
+seed_admin()
+print("[APP] WebGIS API is running ✓")
