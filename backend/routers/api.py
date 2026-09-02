@@ -77,6 +77,16 @@ def _save_upload(file: UploadFile) -> tuple[str, str]:
     return unique_name, file_type
 
 
+def _clear_matrix_cache():
+    """Clear all cached multi-year matrix JSON files to prevent staleness."""
+    for f in os.listdir(UPLOAD_DIR):
+        if f.startswith("cache_matrix_") and f.endswith(".json"):
+            try:
+                os.remove(os.path.join(UPLOAD_DIR, f))
+            except Exception:
+                pass
+
+
 @router.post("/upload")
 def upload_file(
     file: UploadFile = File(...),
@@ -102,6 +112,8 @@ def upload_file(
     # If it's a shapefile zip, auto-convert to GeoJSON for serving
     if file_type == "shp":
         _convert_shp_to_geojson(saved_name, record.id, db)
+
+    _clear_matrix_cache()
 
     return {
         "message": "Upload berhasil!",
@@ -262,12 +274,15 @@ def _resolve_geojson_path(year: int, db: Session) -> str:
 def transition_matrix(year_a: int, year_b: int, db: Session = Depends(get_db)):
     """
     Multi-year change detection via spatial overlay (intersection).
-
-    Returns:
-      - matrix:  {class_a: {class_b: area_ha, ...}, ...}  (transition matrix)
-      - geojson: intersected FeatureCollection with class_a, class_b, status, area_ha
-      - classes_a / classes_b: ordered class lists for building the table header
     """
+    cache_file = os.path.join(UPLOAD_DIR, f"cache_matrix_{year_a}_{year_b}.json")
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[WARN] Failed to read cache: {e}")
+
     import geopandas as gpd
 
     path_a = _resolve_geojson_path(year_a, db)
@@ -283,6 +298,10 @@ def transition_matrix(year_a: int, year_b: int, db: Session = Depends(get_db)):
     # Keep only geometry + class column to reduce memory; rename to avoid collision
     gdf_a = gdf_a[["geometry", col_a]].rename(columns={col_a: "class_a"})
     gdf_b = gdf_b[["geometry", col_b]].rename(columns={col_b: "class_b"})
+
+    # Dissolve by class to massively speed up intersection
+    gdf_a = gdf_a.dissolve(by="class_a").reset_index()
+    gdf_b = gdf_b.dissolve(by="class_b").reset_index()
 
     # Ensure both are WGS84
     for gdf in (gdf_a, gdf_b):
@@ -330,7 +349,7 @@ def transition_matrix(year_a: int, year_b: int, db: Session = Depends(get_db)):
     gdf_out = gdf_inter[["geometry", "class_a", "class_b", "status", "area_ha"]]
     geojson_dict = json.loads(gdf_out.to_json())
 
-    return {
+    result = {
         "year_a": year_a,
         "year_b": year_b,
         "matrix": matrix,
@@ -338,6 +357,15 @@ def transition_matrix(year_a: int, year_b: int, db: Session = Depends(get_db)):
         "classes_b": classes_b,
         "geojson": geojson_dict,
     }
+    
+    # Save to cache
+    try:
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump(result, f)
+    except Exception as e:
+        print(f"[WARN] Failed to write cache: {e}")
+
+    return result
 
 
 def _detect_class_col(gdf) -> str:
@@ -433,6 +461,9 @@ def delete_data(data_id: int, db: Session = Depends(get_db), current_user: User 
 
     db.delete(record)
     db.commit()
+
+    _clear_matrix_cache()
+
     return {"message": "Data berhasil dihapus."}
 
 
