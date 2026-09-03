@@ -427,3 +427,157 @@ function showToast(message, type = 'info') {
   toast.className = `toast toast--${type} show`;
   setTimeout(() => toast.classList.remove('show'), 3500);
 }
+
+// ─────────────────────── GENERATE CACHE (PRE-WARM) ───────────────────────
+let failedCombinations = [];
+
+async function generateAllCaches() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return;
+
+  const btn = document.getElementById('btn-generate-cache');
+  const progressContainer = document.getElementById('cache-progress-container');
+  const progressText = document.getElementById('cache-progress-text');
+  const progressBar = document.getElementById('cache-progress-bar');
+  const progressPercent = document.getElementById('cache-progress-percent');
+  const failedContainer = document.getElementById('cache-failed-container');
+  const failedList = document.getElementById('cache-failed-list');
+  
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Menyiapkan...';
+  failedContainer.style.display = 'none';
+  failedList.innerHTML = '';
+  failedCombinations = [];
+
+  try {
+    // 1. Fetch available years
+    const res = await fetch(`${API_BASE}/api/data/years`);
+    if (!res.ok) throw new Error('Gagal mengambil daftar tahun');
+    const data = await res.json();
+    const years = data.years || [];
+
+    if (years.length < 2) {
+      showToast('Minimal butuh 2 tahun data untuk generate cache!', 'error');
+      btn.disabled = false;
+      btn.innerHTML = '🚀 Mulai Generate Cache';
+      return;
+    }
+
+    // 2. Build combinations (n * n-1 for directional changes)
+    let combinations = [];
+    for (let i = 0; i < years.length; i++) {
+      for (let j = 0; j < years.length; j++) {
+        if (i !== j) {
+          combinations.push({ yearA: years[i], yearB: years[j] });
+        }
+      }
+    }
+
+    progressContainer.style.display = 'block';
+    btn.innerHTML = '⚙️ Sedang Memproses...';
+    
+    await processCombinations(combinations, progressText, progressBar, progressPercent);
+
+    if (failedCombinations.length > 0) {
+      showToast(`Selesai, namun ada ${failedCombinations.length} kombinasi gagal.`, 'error');
+      failedContainer.style.display = 'block';
+      failedCombinations.forEach(c => {
+        const li = document.createElement('li');
+        li.textContent = `${c.yearA} vs ${c.yearB}`;
+        failedList.appendChild(li);
+      });
+    } else {
+      showToast('Seluruh cache berhasil di-generate!', 'success');
+    }
+
+  } catch (err) {
+    console.error(err);
+    showToast('Terjadi kesalahan sistem', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🚀 Mulai Generate Cache';
+  }
+}
+
+async function retryFailedCaches() {
+  if (failedCombinations.length === 0) return;
+
+  const progressText = document.getElementById('cache-progress-text');
+  const progressBar = document.getElementById('cache-progress-bar');
+  const progressPercent = document.getElementById('cache-progress-percent');
+  const failedContainer = document.getElementById('cache-failed-container');
+  const failedList = document.getElementById('cache-failed-list');
+  const btnRetry = document.getElementById('btn-retry-failed-cache');
+
+  btnRetry.disabled = true;
+  btnRetry.innerHTML = '⏳ Memproses...';
+  
+  const combosToRetry = [...failedCombinations];
+  failedCombinations = []; 
+  failedList.innerHTML = '';
+  failedContainer.style.display = 'none';
+
+  await processCombinations(combosToRetry, progressText, progressBar, progressPercent);
+
+  if (failedCombinations.length > 0) {
+    showToast(`Masih ada ${failedCombinations.length} kombinasi gagal.`, 'error');
+    failedContainer.style.display = 'block';
+    failedCombinations.forEach(c => {
+      const li = document.createElement('li');
+      li.textContent = `${c.yearA} vs ${c.yearB}`;
+      failedList.appendChild(li);
+    });
+  } else {
+    showToast('Seluruh kombinasi gagal berhasil di-retry!', 'success');
+  }
+  
+  btnRetry.disabled = false;
+  btnRetry.innerHTML = '🔄 Coba Ulang yang Gagal';
+}
+
+async function processCombinations(combinations, textEl, barEl, percentEl) {
+  const total = combinations.length;
+  
+  for (let i = 0; i < total; i++) {
+    const combo = combinations[i];
+    let success = false;
+    let attempts = 0;
+
+    textEl.textContent = `Memproses ${i + 1} dari ${total} kombinasi... (${combo.yearA} vs ${combo.yearB})`;
+    const pct = Math.round(((i) / total) * 100);
+    barEl.style.width = `${pct}%`;
+    percentEl.textContent = `${pct}%`;
+
+    while (!success && attempts < 3) {
+      attempts++;
+      try {
+        const res = await fetch(`${API_BASE}/api/data/matrix/${combo.yearA}/${combo.yearB}`);
+        if (res.ok) {
+          success = true;
+        } else {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } catch (err) {
+        console.warn(`Percobaan ${attempts}/3 gagal untuk ${combo.yearA} vs ${combo.yearB}`, err);
+        if (attempts < 3) {
+          // Jeda 2 detik sebelum retry
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+    }
+
+    if (!success) {
+      failedCombinations.push(combo);
+    } else {
+      // Jeda 3 detik setelah sukses agar server membuang memori sampah (GC)
+      if (i < total - 1) {
+        await new Promise(r => setTimeout(r, 3000));
+      }
+    }
+  }
+
+  // 100% complete
+  barEl.style.width = `100%`;
+  percentEl.textContent = `100%`;
+  textEl.textContent = `Selesai memproses ${total} kombinasi.`;
+}
