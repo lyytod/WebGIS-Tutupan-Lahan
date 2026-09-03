@@ -79,12 +79,15 @@ def _save_upload(file: UploadFile) -> tuple[str, str]:
 
 def _clear_matrix_cache():
     """Clear all cached multi-year matrix JSON files to prevent staleness."""
-    for f in os.listdir(UPLOAD_DIR):
-        if f.startswith("cache_matrix_") and f.endswith(".json"):
-            try:
-                os.remove(os.path.join(UPLOAD_DIR, f))
-            except Exception:
-                pass
+    try:
+        for f in os.listdir(UPLOAD_DIR):
+            if f.startswith("cache_matrix_") and f.endswith(".json"):
+                try:
+                    os.remove(os.path.join(UPLOAD_DIR, f))
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"[WARN] Failed to clear matrix cache: {e}")
 
 
 @router.post("/upload")
