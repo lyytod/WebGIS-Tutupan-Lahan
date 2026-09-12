@@ -463,7 +463,18 @@ async function generateAllCaches() {
       return;
     }
 
-    // 2. Build combinations (n * n-1 for directional changes)
+    // 2. Pre-warm Single-Year cache first
+    progressContainer.style.display = 'block';
+    for (let i = 0; i < years.length; i++) {
+      textEl.textContent = `Pre-warming cache Single-Year untuk ${years[i]}...`;
+      try {
+        await fetch(`${API_BASE}/api/data/geojson/${years[i]}`);
+      } catch (err) {
+        console.warn(`Gagal memuat cache single-year untuk ${years[i]}`);
+      }
+    }
+
+    // 3. Build combinations (n * n-1 for directional changes)
     let combinations = [];
     for (let i = 0; i < years.length; i++) {
       for (let j = 0; j < years.length; j++) {
@@ -473,8 +484,7 @@ async function generateAllCaches() {
       }
     }
 
-    progressContainer.style.display = 'block';
-    btn.innerHTML = '⚙️ Sedang Memproses...';
+    btn.innerHTML = '⚙️ Sedang Memproses Multi-Year...';
     
     await processCombinations(combinations, progressText, progressBar, progressPercent);
 

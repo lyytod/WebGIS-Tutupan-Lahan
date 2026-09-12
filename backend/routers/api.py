@@ -397,7 +397,16 @@ def _compute_stats(geojson_path: str) -> dict:
     Compute per-class area statistics in Hectares from a GeoJSON file.
     Uses geopandas to reproject to a metric CRS (UTM zone 49S for Surakarta)
     for accurate area calculation.
+    Caches the result to speed up subsequent loads.
     """
+    cache_path = geojson_path.replace(".geojson", "_stats.json")
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[WARN] Failed to load stats cache: {e}")
+
     try:
         import geopandas as gpd
 
@@ -421,6 +430,14 @@ def _compute_stats(geojson_path: str) -> dict:
 
         stats = gdf_proj.groupby(class_col)["area_ha"].sum().to_dict()
         stats = {str(k): round(v, 2) for k, v in stats.items()}
+        
+        # Save cache
+        try:
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(stats, f)
+        except Exception as e:
+            print(f"[WARN] Failed to save stats cache: {e}")
+            
         return stats
     except Exception as e:
         print(f"[WARN] Stats computation failed: {e}")
@@ -456,6 +473,11 @@ def delete_data(data_id: int, db: Session = Depends(get_db), current_user: User 
     filepath = os.path.join(UPLOAD_DIR, record.filename)
     if os.path.exists(filepath):
         os.remove(filepath)
+
+    # Remove stats cache if exists
+    stats_cache = filepath.replace(".geojson", "_stats.json")
+    if os.path.exists(stats_cache):
+        os.remove(stats_cache)
 
     # Also remove extracted shp directory if exists
     shp_dir = os.path.join(UPLOAD_DIR, record.filename.replace(".geojson", "_shp").replace(".zip", "_shp"))
