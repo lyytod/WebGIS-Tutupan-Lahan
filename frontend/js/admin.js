@@ -466,7 +466,7 @@ async function generateAllCaches() {
     // 2. Pre-warm Single-Year cache first
     progressContainer.style.display = 'block';
     for (let i = 0; i < years.length; i++) {
-      textEl.textContent = `Pre-warming cache Single-Year untuk ${years[i]}...`;
+      progressText.textContent = `Pre-warming cache Single-Year untuk ${years[i]}...`;
       try {
         await fetch(`${API_BASE}/api/data/geojson/${years[i]}`);
       } catch (err) {
