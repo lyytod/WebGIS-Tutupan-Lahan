@@ -429,7 +429,7 @@ function showToast(message, type = 'info') {
 }
 
 // ─────────────────────── GENERATE CACHE (PRE-WARM) ───────────────────────
-let failedCombinations = [];
+let failedTasks = [];
 
 async function generateAllCaches() {
   const token = localStorage.getItem(TOKEN_KEY);
@@ -447,7 +447,7 @@ async function generateAllCaches() {
   btn.innerHTML = '⏳ Menyiapkan...';
   failedContainer.style.display = 'none';
   failedList.innerHTML = '';
-  failedCombinations = [];
+  failedTasks = [];
 
   try {
     // 1. Fetch available years
@@ -463,37 +463,34 @@ async function generateAllCaches() {
       return;
     }
 
-    // 2. Pre-warm Single-Year cache first
-    progressContainer.style.display = 'block';
+    // 2. Build tasks (Single-Year + Multi-Year)
+    let tasks = [];
+    
+    // Tahap Single-Year
     for (let i = 0; i < years.length; i++) {
-      progressText.textContent = `Pre-warming cache Single-Year untuk ${years[i]}...`;
-      try {
-        await fetch(`${API_BASE}/api/data/geojson/${years[i]}`);
-      } catch (err) {
-        console.warn(`Gagal memuat cache single-year untuk ${years[i]}`);
-      }
+      tasks.push({ type: 'single', year: years[i] });
     }
-
-    // 3. Build combinations (n * n-1 for directional changes)
-    let combinations = [];
+    
+    // Tahap Multi-Year
     for (let i = 0; i < years.length; i++) {
       for (let j = 0; j < years.length; j++) {
         if (i !== j) {
-          combinations.push({ yearA: years[i], yearB: years[j] });
+          tasks.push({ type: 'multi', yearA: years[i], yearB: years[j] });
         }
       }
     }
 
-    btn.innerHTML = '⚙️ Sedang Memproses Multi-Year...';
+    progressContainer.style.display = 'block';
+    btn.innerHTML = '⚙️ Sedang Memproses...';
     
-    await processCombinations(combinations, progressText, progressBar, progressPercent);
+    await processTasks(tasks, progressText, progressBar, progressPercent);
 
-    if (failedCombinations.length > 0) {
-      showToast(`Selesai, namun ada ${failedCombinations.length} kombinasi gagal.`, 'error');
+    if (failedTasks.length > 0) {
+      showToast(`Selesai, namun ada ${failedTasks.length} antrean gagal.`, 'error');
       failedContainer.style.display = 'block';
-      failedCombinations.forEach(c => {
+      failedTasks.forEach(t => {
         const li = document.createElement('li');
-        li.textContent = `${c.yearA} vs ${c.yearB}`;
+        li.textContent = t.type === 'single' ? `Single-Year: ${t.year}` : `Multi-Year: ${t.yearA} vs ${t.yearB}`;
         failedList.appendChild(li);
       });
     } else {
@@ -510,7 +507,7 @@ async function generateAllCaches() {
 }
 
 async function retryFailedCaches() {
-  if (failedCombinations.length === 0) return;
+  if (failedTasks.length === 0) return;
 
   const progressText = document.getElementById('cache-progress-text');
   const progressBar = document.getElementById('cache-progress-bar');
@@ -522,38 +519,43 @@ async function retryFailedCaches() {
   btnRetry.disabled = true;
   btnRetry.innerHTML = '⏳ Memproses...';
   
-  const combosToRetry = [...failedCombinations];
-  failedCombinations = []; 
+  const tasksToRetry = [...failedTasks];
+  failedTasks = []; 
   failedList.innerHTML = '';
   failedContainer.style.display = 'none';
 
-  await processCombinations(combosToRetry, progressText, progressBar, progressPercent);
+  await processTasks(tasksToRetry, progressText, progressBar, progressPercent);
 
-  if (failedCombinations.length > 0) {
-    showToast(`Masih ada ${failedCombinations.length} kombinasi gagal.`, 'error');
+  if (failedTasks.length > 0) {
+    showToast(`Masih ada ${failedTasks.length} antrean gagal.`, 'error');
     failedContainer.style.display = 'block';
-    failedCombinations.forEach(c => {
+    failedTasks.forEach(t => {
       const li = document.createElement('li');
-      li.textContent = `${c.yearA} vs ${c.yearB}`;
+      li.textContent = t.type === 'single' ? `Single-Year: ${t.year}` : `Multi-Year: ${t.yearA} vs ${t.yearB}`;
       failedList.appendChild(li);
     });
   } else {
-    showToast('Seluruh kombinasi gagal berhasil di-retry!', 'success');
+    showToast('Seluruh antrean gagal berhasil di-retry!', 'success');
   }
   
   btnRetry.disabled = false;
   btnRetry.innerHTML = '🔄 Coba Ulang yang Gagal';
 }
 
-async function processCombinations(combinations, textEl, barEl, percentEl) {
-  const total = combinations.length;
+async function processTasks(tasks, textEl, barEl, percentEl) {
+  const total = tasks.length;
   
   for (let i = 0; i < total; i++) {
-    const combo = combinations[i];
+    const task = tasks[i];
     let success = false;
     let attempts = 0;
 
-    textEl.textContent = `Memproses ${i + 1} dari ${total} kombinasi... (${combo.yearA} vs ${combo.yearB})`;
+    if (task.type === 'single') {
+      textEl.textContent = `Memproses ${i + 1} dari ${total} (Single-Year: ${task.year})...`;
+    } else {
+      textEl.textContent = `Memproses ${i + 1} dari ${total} (Multi-Year: ${task.yearA} vs ${task.yearB})...`;
+    }
+    
     const pct = Math.round(((i) / total) * 100);
     barEl.style.width = `${pct}%`;
     percentEl.textContent = `${pct}%`;
@@ -561,14 +563,18 @@ async function processCombinations(combinations, textEl, barEl, percentEl) {
     while (!success && attempts < 3) {
       attempts++;
       try {
-        const res = await fetch(`${API_BASE}/api/data/matrix/${combo.yearA}/${combo.yearB}`);
+        let url = task.type === 'single' 
+            ? `${API_BASE}/api/data/geojson/${task.year}`
+            : `${API_BASE}/api/data/matrix/${task.yearA}/${task.yearB}`;
+            
+        const res = await fetch(url);
         if (res.ok) {
           success = true;
         } else {
           throw new Error(`HTTP ${res.status}`);
         }
       } catch (err) {
-        console.warn(`Percobaan ${attempts}/3 gagal untuk ${combo.yearA} vs ${combo.yearB}`, err);
+        console.warn(`Percobaan ${attempts}/3 gagal untuk antrean:`, task, err);
         if (attempts < 3) {
           // Jeda 2 detik sebelum retry
           await new Promise(r => setTimeout(r, 2000));
@@ -577,11 +583,11 @@ async function processCombinations(combinations, textEl, barEl, percentEl) {
     }
 
     if (!success) {
-      failedCombinations.push(combo);
+      failedTasks.push(task);
     } else {
-      // Jeda 3 detik setelah sukses agar server membuang memori sampah (GC)
+      // Jeda setelah sukses agar server membuang memori sampah (GC)
       if (i < total - 1) {
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, task.type === 'single' ? 500 : 3000));
       }
     }
   }
@@ -589,5 +595,5 @@ async function processCombinations(combinations, textEl, barEl, percentEl) {
   // 100% complete
   barEl.style.width = `100%`;
   percentEl.textContent = `100%`;
-  textEl.textContent = `Selesai memproses ${total} kombinasi.`;
+  textEl.textContent = `Selesai memproses ${total} data.`;
 }
